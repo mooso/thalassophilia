@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="style.css">
+    <title>Gossip with favorites</title>
+</head>
+
+<body>
+    <h3>
+        <a href="index.html">&lt;&lt; Back home</a>
+    </h3>
+
+    <h2>
+        Introduction
+    </h2>
+
+    <p>
+        The paper we're tackling here - "Differentiated Consistency for Worldwide Gossips" - is about gossip, with a
+        twist. Gossip algorithms are an awesome class of algorithms that before tackling this paper I never really
+        delved into, so I'm happy to have had this chance to explore them at a little depth and hopefully I don't have
+        glaring mistakes. In a gossip algorithm, you have a bunch of computers, typically at least in the hundreds,
+        where they try to keep a shared data structure consistent and up to date between them by having each one gossip
+        the updates to the others. In the paper, they extend the basic gossip algorithm so that a privileged group
+        of computers - what they term primaries - get early word of any updates so they are more up-to-date on any
+        updates on average, while the rest get their updates a bit later but in a tighter timeframe so they're more
+        consistent with each other even as they're a bit behind.
+    </p>
+
+    <p>
+        Don't worry if most of the previous paragraph didn't make sense - we'll go into all of that in more depth in the
+        rest of this article.
+    </p>
+
+    <h2>
+        Gossip basics
+    </h2>
+
+    <p>
+        In a gossip network, a bunch of participants (typically different computers, but let's call them nodes) are all
+        trying to maintain a common data structure. In the running example we'll have throughout, the nodes will all be
+        communicating about the color of a magic goose in terms of whether or not it has Red, Green and/or Blue. So in
+        the beginning they'll all agree that the goose is black (no R, G or B). But at various points any of them will
+        want to issue updates like:
+    </p>
+
+    <ol>
+        <li>I see some Red! Let's all update the color to add Red!</li>
+        <li>I see Blue! Let's all update the color to add Blue!</li>
+        <li>Actually I don't see Red at all! Let's all remove the Red from the color.</li>
+    </ol>
+
+    <p>
+        Whenever any of them wants to issue such an update, they'll update their local state then will send a message of
+        the update to a random subset of other nodes (the size of this subset is called the <i>fanout</i>). And whenever
+        any node receives such an update message that it hasn't seen before, it'll update its local state and then pass
+        the message on to another random subset. And if all goes well, all the nodes will hear about this update and
+        consensus will be achieved and they'll be closer to figuring out the true color of the magic goose.
+    </p>
+
+    <p>
+        Two important points to emphasize here about this basic description:
+    </p>
+
+    <ol>
+        <li>
+            Nodes can get updates in any order, and they should be resilient to that.
+        </li>
+        <li>
+            If a node gets a message that it has seen before, it just drops it. So each node needs to remember the
+            messages it received so duplicates can be dropped.
+        </li>
+    </ol>
+
+    <p>
+        We'll talk more about the first point below. The second point is how gossip messages don't just end up
+        circulating forever. In the literature this is talked about in terms of an epidemic model: nodes get infected
+        with a message ("add Red"), infect a random subset of other nodes, then get cured and develop immunity against
+        that message such that if another node tries to send it the same message again it'll just drop it. And since
+        epidemiologist have already figured out a bunch of math around infection rates and the conditions needed for the
+        disease/message to infect everyone and so on, we can just use this math to figure out good fanout rates for
+        ourselves! And all it cost is a little bit of a macabre analogy.
+    </p>
+
+    <h2>
+        Resilient data structures
+    </h2>
+
+    <p>
+        As stated above, our data structure needs to be resilient to messages/updates arriving in different orders, and
+        still converge to the same end state. For example a node can hear about removing Red before it hears about that
+        Red should be added at all, and if the nodes want to be consistent at the end, they should have the same end
+        state regardless of order of messages. So ["add Red", "add Blue", "remove Red"] should be the same as ["remove
+        red", "add Blue", "add Red"] - namely both sequences of messages should result in the end state of "Blue".
+    </p>
+
+    <p>
+        In the paper they give the example of an append-only queue and how to maintain that, but I ended up implementing
+        a set instead for this post's purposes. You can find the code for this <code>GossipSet</code> in the
+        <code>pheromessage</code> repository <a
+            href="https://github.com/mooso/pheromessage/blob/main/pheromessage/src/data.rs">here</a>. The technique used
+        is to keep a pair of counters for each element for the number of times it was added removed. So if a node gets
+        three messages to "add Blue", and two messages to "remove Blue", then it'll maintain that it got 3 additions and
+        2 removals of Blue (regardless of order). And at that point it can conclude that Blue is indeed present in the
+        set (so an element is present if the number of additions is greater than the number of removals).
+    </p>
+
+    <p>
+        The set is the easy structure which is why I picked it. The paper's append-only queue mechanism is more clever
+        and uses logical (Lamport) clocks to achieve this resiliency, so you should check it out.
+    </p>
+
+    <h2>
+        The privileged few
+    </h2>
+
+    <p>
+        So the basic gossip is all well and good, but what if you want a (small) subset of nodes to always get updates
+        first? The paper gives an example of a blockchain where you want the mining nodes to get updates quicker than
+        passive nodes, but I can also imagine needing this in a variety of cases where a few nodes can act as more
+        authoritative sources of much more up-to-date data, and the rest are backup nodes for less critical use cases
+        (e.g. analytics) where being super up-to-date isn't very critical, and they can afford to be a little bit
+        behind.
+    </p>
+
+    <p>
+        What I love about this paper is that the algorithm modification is fairly simple, but it works and most of the
+        paper is dedicated to proving its effectiveness. The tweaks over the basic gossip algorithm are:
+    </p>
+
+    <ol>
+        <li>When an update is first done by any node (primary or secondary) - the gossip messages are sent to a subset
+            of the primary nodes instead of choosing among all the nodes.</li>
+        <li>When a primary node receives a gossip message, if it's the first time it's seen it then the gossip is sent
+            to a subset of the primary nodes. Otherwise if it's the second time it's seen it then it'll send gossip to
+            the secondaries (if it's seen it more than twice then it's dropped - the node is immune now).</li>
+        <li>Secondaries only gossip to secondaries when they receive gossip messages.</li>
+    </ol>
+
+    <p>
+        The intuition behind this is that gossip is first sent to the primary sub-network where it circulates quickly,
+        and as the primary nodes get first infection only then do they start sending word to the secondaries where they
+        gossip it among themselves. This lets primaries get low latency on updates (since they're first to hear), and
+        secondaries be more consistent since when they first get word about an update, they'll get a bunch of primaries
+        sending messages to them so updates reach all of them very soon after the first one hears about it.
+    </p>
+
+    <p>
+        You can see my implementation of both the basic (<code>UniformGossip</code>) and the modified
+        (<code>PreferentialGossip</code>) algorithms in <code>pheromessage</code> <a
+            href="https://github.com/mooso/pheromessage/blob/main/pheromessage/src/lib.rs">here</a>.
+    </p>
+
+    <h2>
+        Paper citation
+    </h2>
+    <p>
+        <code>
+        D. Frey, A. Mostefaoui, M. Perrin, P. -L. Roman and F. Taïani, "Differentiated Consistency for Worldwide
+        Gossips," in IEEE Transactions on Parallel and Distributed Systems, vol. 34, no. 1, pp. 1-15, 1 Jan. 2023, doi:
+        10.1109/TPDS.2022.3209150.
+    </code>
+    </p>
+
+    <h2>
+        Code repository
+    </h2>
+    <p>
+        <a href="https://github.com/mooso/pheromessage">pheromessage</a>
+    </p>
+
+</body>
+
+</html>
