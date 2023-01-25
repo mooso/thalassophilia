@@ -1,14 +1,14 @@
 // Import the Rust WASM module for pherogoose
 import init from './pherogoose_pkg/pherogoose.js';
-import { UniformCult, PrimaryColor } from './pherogoose_pkg/pherogoose.js';
+import { UniformCult, StriatedCult, PrimaryColor } from './pherogoose_pkg/pherogoose.js';
 
 const CELL_SIZE = 10;
-const WIDTH = 40;
-const HEIGHT = 40;
+const WIDTH = 50;
+const HEIGHT = 50;
 const WATCHERS = WIDTH * HEIGHT;
+const HIGH_PRIESTS = 5 * WIDTH;
 const FANOUT = 20;
 const MILLIS_BETWEEN_TICKS = 100;
-const unifrom_table = document.getElementById("uniform-gossip");
 
 // Convert a color from the Rust wasm u32 representation to a CSS web color.
 function toColor(num) {
@@ -106,8 +106,10 @@ function simulate(wasm, table, cult) {
 }
 
 function run(wasm) {
-    const cult = UniformCult.new(WATCHERS, FANOUT);
-    simulate(wasm, unifrom_table, cult);
+    const unifrom_table = document.getElementById("uniform-gossip");
+    const preferential_table = document.getElementById("preferential-gossip");
+    simulate(wasm, unifrom_table, UniformCult.new(WATCHERS, FANOUT));
+    simulate(wasm, preferential_table, StriatedCult.new(WATCHERS, HIGH_PRIESTS, FANOUT));
 }
 
 init().then(run)

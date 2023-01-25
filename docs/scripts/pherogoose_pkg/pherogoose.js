@@ -64,6 +64,77 @@ function getArrayU8FromWasm0(ptr, len) {
 */
 export const PrimaryColor = Object.freeze({ Red:0,"0":"Red",Blue:1,"1":"Blue",Green:2,"2":"Green", });
 /**
+* A striated cult of goose watchers, where all some watchers are higher ranked and get word sooner.
+*/
+export class StriatedCult {
+
+    static __wrap(ptr) {
+        const obj = Object.create(StriatedCult.prototype);
+        obj.ptr = ptr;
+
+        return obj;
+    }
+
+    __destroy_into_raw() {
+        const ptr = this.ptr;
+        this.ptr = 0;
+
+        return ptr;
+    }
+
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_striatedcult_free(ptr);
+    }
+    /**
+    * Create a new striated cult of the given number of watchers and `fanout` to use
+    * while gossipping (the number of watchers to talk to when spreading gossip).
+    * A subset of watchers - the first  `num_high_priests` - are priviliged to get first
+    * word of any new gossip.
+    * @param {number} num_watchers
+    * @param {number} num_high_priests
+    * @param {number} fanout
+    * @returns {StriatedCult}
+    */
+    static new(num_watchers, num_high_priests, fanout) {
+        const ret = wasm.striatedcult_new(num_watchers, num_high_priests, fanout);
+        return StriatedCult.__wrap(ret);
+    }
+    /**
+    * The current knowledge of the color of the goose as an array of size `num_watchers`.
+    * @returns {number}
+    */
+    colors() {
+        const ret = wasm.striatedcult_colors(this.ptr);
+        return ret;
+    }
+    /**
+    * Tick forward in the simulation - process one message per watcher.
+    * Returns false if the network is now idle (no messages remaining).
+    * @returns {boolean}
+    */
+    tick() {
+        const ret = wasm.striatedcult_tick(this.ptr);
+        return ret !== 0;
+    }
+    /**
+    * Add a color to the gossip starting at the given watcher index (`inspired_watcher`).
+    * @param {number} inspired_watcher
+    * @param {number} color
+    */
+    add_color(inspired_watcher, color) {
+        wasm.striatedcult_add_color(this.ptr, inspired_watcher, color);
+    }
+    /**
+    * Remove a color from the gossip starting at the given watcher index (`inspired_watcher`).
+    * @param {number} inspired_watcher
+    * @param {number} color
+    */
+    remove_color(inspired_watcher, color) {
+        wasm.striatedcult_remove_color(this.ptr, inspired_watcher, color);
+    }
+}
+/**
 * A uniform cult of goose watchers, where all watchers are the same.
 */
 export class UniformCult {
@@ -102,7 +173,7 @@ export class UniformCult {
     * @returns {number}
     */
     colors() {
-        const ret = wasm.uniformcult_colors(this.ptr);
+        const ret = wasm.striatedcult_colors(this.ptr);
         return ret;
     }
     /**

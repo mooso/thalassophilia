@@ -166,6 +166,26 @@
     </p>
 
     <p>
+        As an example, here is a preferential gossip network like the one above, but now a subset of the network (the
+        top 5 rows) is designated "high priests" and will get first word of any gossip about colors. Press the
+        red/green/blue buttons to add/remove those colors:
+    </p>
+
+    <table id="preferential-gossip">
+        <tr>
+            <td colspan="100%"><canvas id="gossip-canvas"></canvas></td>
+        </tr>
+        <tr>
+            <td><button id="blue" type="button" style="background-color: blue; height: 20px; width: 50px;">Blue</button>
+            </td>
+            <td><button id="green" type="button"
+                    style="background-color: green; height: 20px; width: 50px;">Green</button></td>
+            <td><button id="red" type="button" style="background-color: red; height: 20px; width: 50px;">Red</button>
+            </td>
+        </tr>
+    </table>
+
+    <p>
         You can see my implementation of both the basic (<code>UniformGossip</code>) and the modified
         (<code>PreferentialGossip</code>) algorithms in <code>pheromessage</code> <a
             href="https://github.com/mooso/pheromessage/blob/main/pheromessage/src/lib.rs">here</a>.
