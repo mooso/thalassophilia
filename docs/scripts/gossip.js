@@ -91,10 +91,10 @@ function simulate(wasm, table, cult) {
     };
 
     // The render loop
-    // TODO: When the gossip network is idle, stop requesting animation frame
     const renderLoop = (timestamp) => {
+        let needAnimation = true;
         if ((lastTickTime === undefined) || ((timestamp - lastTickTime) > MILLIS_BETWEEN_TICKS)) {
-            cult.tick();
+            needAnimation = cult.tick();
             drawCells();
             lastTickTime = timestamp;
         }

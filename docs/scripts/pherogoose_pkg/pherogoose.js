@@ -107,9 +107,12 @@ export class UniformCult {
     }
     /**
     * Tick forward in the simulation - process one message per watcher.
+    * Returns false if the network is now idle (no messages remaining).
+    * @returns {boolean}
     */
     tick() {
-        wasm.uniformcult_tick(this.ptr);
+        const ret = wasm.uniformcult_tick(this.ptr);
+        return ret !== 0;
     }
     /**
     * Add a color to the gossip starting at the given watcher index (`inspired_watcher`).
