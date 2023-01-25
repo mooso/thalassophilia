@@ -4,6 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="style.css">
+    <script type="module" src="scripts/gossip.js"></script>
     <title>Gossip with favorites</title>
 </head>
 
@@ -82,6 +83,24 @@
         disease/message to infect everyone and so on, we can just use this math to figure out good fanout rates for
         ourselves! And all it cost is a little bit of a macabre analogy.
     </p>
+
+    <p>
+        As an example, here is a uniform gossip network. Press the red/green/blue buttons to add/remove those colors:
+    </p>
+
+    <table id="uniform-gossip">
+        <tr>
+            <td colspan="100%"><canvas id="gossip-canvas"></canvas></td>
+        </tr>
+        <tr>
+            <td><button id="blue" type="button" style="background-color: blue; height: 20px; width: 50px;">Blue</button>
+            </td>
+            <td><button id="green" type="button"
+                    style="background-color: green; height: 20px; width: 50px;">Green</button></td>
+            <td><button id="red" type="button" style="background-color: red; height: 20px; width: 50px;">Red</button>
+            </td>
+        </tr>
+    </table>
 
     <h2>
         Resilient data structures
