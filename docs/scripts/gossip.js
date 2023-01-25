@@ -31,6 +31,12 @@ function toggleColor(toggle, primaryColor, cult) {
     }
 }
 
+// Set the button to either +Color or -Color depending on the current toggle
+function toggleButtonText(toggle, button) {
+    const prefix = toggle ? "-" : "+";
+    button.textContent = prefix + button.textContent.slice(1);
+}
+
 // Gets a watcher index for a given row/column in the grid we display the watchers in.
 function getIndex(row, column) {
     return row * WIDTH + column;
@@ -53,18 +59,24 @@ function simulate(wasm, table, cult) {
 
     // Hook up the toggle buttons
     let blue = false;
+    let blueButton = table.querySelector('#blue');
     let green = false;
+    let greenButton = table.querySelector('#green');
     let red = false;
-    table.querySelector('#blue').onclick = () => {
+    let redButton = table.querySelector('#red');
+    blueButton.onclick = () => {
         blue = toggleColor(blue, PrimaryColor.Blue, cult);
+        toggleButtonText(blue, blueButton);
         startSim();
     };
-    table.querySelector('#green').onclick = () => {
+    greenButton.onclick = () => {
         green = toggleColor(green, PrimaryColor.Green, cult);
+        toggleButtonText(green, greenButton);
         startSim();
     };
-    table.querySelector('#red').onclick = () => {
+    redButton.onclick = () => {
         red = toggleColor(red, PrimaryColor.Red, cult);
+        toggleButtonText(red, redButton);
         startSim();
     };
 

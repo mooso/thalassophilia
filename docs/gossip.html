@@ -13,6 +13,10 @@
         <a href="index.html">&lt;&lt; Back home</a>
     </h3>
 
+    <h1>
+        Gossip with favorites
+    </h1>
+
     <h2>
         Introduction
     </h2>
@@ -79,13 +83,16 @@
         circulating forever. In the literature this is talked about in terms of an epidemic model: nodes get infected
         with a message ("add Red"), infect a random subset of other nodes, then get cured and develop immunity against
         that message such that if another node tries to send it the same message again it'll just drop it. And since
-        epidemiologist have already figured out a bunch of math around infection rates and the conditions needed for the
-        disease/message to infect everyone and so on, we can just use this math to figure out good fanout rates for
+        epidemiologists have already figured out a bunch of math around infection rates and the conditions needed for
+        the disease/message to infect everyone and so on, we can just use this math to figure out good fanout rates for
         ourselves! And all it cost is a little bit of a macabre analogy.
     </p>
 
     <p>
-        As an example, here is a uniform gossip network. Press the red/green/blue buttons to add/remove those colors:
+        As an example, here is a uniform gossip network. Press the red/green/blue buttons to add/remove those colors -
+        this will pick a random watcher to be inspired to add/remove the color from the current guess
+        and gossip this message to the rest. Since gossip is stochastic the gossip will sometimes spread really fast,
+        and sometimes the news will spread more slowly, so play around with that.
     </p>
 
     <table id="uniform-gossip">
@@ -93,11 +100,12 @@
             <td colspan="100%"><canvas id="gossip-canvas"></canvas></td>
         </tr>
         <tr>
-            <td><button id="blue" type="button" style="background-color: blue; height: 20px; width: 50px;">Blue</button>
+            <td><button id="blue" type="button"
+                    style="background-color: blue; height: 20px; width: 70px;">+Blue</button>
             </td>
             <td><button id="green" type="button"
-                    style="background-color: green; height: 20px; width: 50px;">Green</button></td>
-            <td><button id="red" type="button" style="background-color: red; height: 20px; width: 50px;">Red</button>
+                    style="background-color: green; height: 20px; width: 70px;">+Green</button></td>
+            <td><button id="red" type="button" style="background-color: red; height: 20px; width: 70px;">+Red</button>
             </td>
         </tr>
     </table>
@@ -176,11 +184,12 @@
             <td colspan="100%"><canvas id="gossip-canvas"></canvas></td>
         </tr>
         <tr>
-            <td><button id="blue" type="button" style="background-color: blue; height: 20px; width: 50px;">Blue</button>
+            <td><button id="blue" type="button"
+                    style="background-color: blue; height: 20px; width: 70px;">+Blue</button>
             </td>
             <td><button id="green" type="button"
-                    style="background-color: green; height: 20px; width: 50px;">Green</button></td>
-            <td><button id="red" type="button" style="background-color: red; height: 20px; width: 50px;">Red</button>
+                    style="background-color: green; height: 20px; width: 70px;">+Green</button></td>
+            <td><button id="red" type="button" style="background-color: red; height: 20px; width: 70px;">+Red</button>
             </td>
         </tr>
     </table>
@@ -203,10 +212,26 @@
     </p>
 
     <h2>
-        Code repository
+        Code behind this post
     </h2>
     <p>
-        <a href="https://github.com/mooso/pheromessage">pheromessage</a>
+        The bulk of the code written for this post is in the <a
+            href="https://github.com/mooso/pheromessage">pheromessage</a> repository. This contains two Rust crates:
+    </p>
+
+    <ul>
+        <li>The <code>pheromessage</code> crate is a generic library with the implementation of the gossip algorithms in
+            a way designed to be usable in the real world (please feel free to file an issue if you want this library
+            published in crates.io). It also has an example (<code>lset</code>) that simulates a gossip network as a
+            node per thread and shows statistics about the latencies of messages.</li>
+        <li>The <code>pherogoose</code> crate is a WASM crate that uses <code>pheromessage</code> to simulate the simple
+            gossip networks as seen in this post.</li>
+    </ul>
+
+    <p>
+        The rest of this is the JavaScript glue code for the post, which is in the <a
+            href="https://github.com/mooso/thalassophilia/blob/main/docs/scripts/gossip.js">gossip.js</a> file in this
+        site's repo.
     </p>
 
 </body>
