@@ -201,6 +201,73 @@
     </p>
 
     <h2>
+        So does it work?
+    </h2>
+
+    <p>
+        Animations of toy networks is all well and good, and I personally see the primary cells in the animation getting
+        the first word on average, but it's also not that obvious so a more quantitative assessment is definitely
+        needed. In the paper they simulate 1M node networks using <a href="https://peersim.sourceforge.net/">PeerSim</a>
+        and evaluate the performance using networks revolving around how many rounds of gossip it takes to disseminate a
+        message and the total number of messages in the network. Overall it seems to work pretty well there. But being
+        more of an engineer than an academic, I wanted to try a more hands-on measure of the network.
+    </p>
+
+    <p>
+        At first I wanted to actually run the gossip network using a large number of tiny VMs in the cloud. I went some
+        way towards implementing that with an implementation of serializing the messages using the <a
+            href="https://crates.io/crates/postcard"><code>postcard</code> crate</a> (see <a
+            href="https://github.com/mooso/pheromessage/blob/main/pheromessage/src/postmessage.rs"><code>postmessage</code></a>)
+        and delivering them using UDP (<a
+            href="https://github.com/mooso/pheromessage/blob/main/pheromessage/src/net.rs"><code>UdpDelivery</code></a>).
+        But I ended up deciding this might take too much time/expense to fully try, so I opted for simulating them as
+        nodes
+        on separate threads that communicate using message queues (naive implementation in the <a
+            href="https://github.com/mooso/pheromessage/blob/main/pheromessage/src/channel.rs"><code>channels</code>
+            module</a>, more scalable implementation where many nodes can share a thread in the <a
+            href="https://github.com/mooso/pheromessage/blob/main/pheromessage/src/multiplex.rs"><code>multiplex</code>
+            module</a>).
+    </p>
+
+    <p>
+        With my more hands-on implementation, simulating on the scale of 1M nodes was too slow on my poor machine. So I
+        ended up simulating at the tens-of-thousands of nodes scale. I'd simulate a network, send a message to a random
+        node, pick another (or same) random node and keep querying it until it got that message and record that time,
+        then repeat for thousands of messages and get some stats on the time-to-delivery metric. So for example, here is
+        the mean time-to-delivery as a function of network size for some networks:
+    </p>
+
+    <img src="images/gossip_mean_time_to_delivery.png"
+        alt="Graph of mean time to delivery to gossip nodes by algorithm" />
+
+    <p>
+        In the graph the blue line represents the mean time to delivery for a purely uniform network (baseline), the
+        orange line represents mean time to delivery to a primary node with the new algorithm, and the green line is for
+        a secondary node with the new algorithm. In general I see the same broad conclusions as the paper:
+    </p>
+
+    <ol>
+        <li>Primaries get word faster in the new algorithm than they would've under the uniform algorithm</li>
+        <li>Secondaries are very slightly slower, but it's barely noticeable</li>
+    </ol>
+
+    <p>
+        To my eyes it seems like the lower mean is mainly driven by a lower tail distribution - the median time for a
+        message is about the same for all:
+    </p>
+
+    <img src="images/gossip_p50_time_to_delivery.png"
+        alt="Graph of p50 time to delivery to gossip nodes by algorithm" />
+
+    <p>
+        But the primaries have a tighter timeline with fewer messages taking too long to reach them, so for example here
+        is the 90th percentile (the time for the slowest 10% of messages):
+    </p>
+
+    <img src="images/gossip_p90_time_to_delivery.png"
+        alt="Graph of p90 time to delivery to gossip nodes by algorithm" />
+
+    <h2>
         Paper citation
     </h2>
     <p>
@@ -222,8 +289,8 @@
     <ul>
         <li>The <code>pheromessage</code> crate is a generic library with the implementation of the gossip algorithms in
             a way designed to be usable in the real world (please feel free to file an issue if you want this library
-            published in crates.io). It also has an example (<code>lset</code>) that simulates a gossip network as a
-            node per thread and shows statistics about the latencies of messages.</li>
+            published in crates.io). It also has an example (<code>lset</code>) that simulates a gossip network as nodes
+            per thread and shows statistics about the latencies of messages.</li>
         <li>The <code>pherogoose</code> crate is a WASM crate that uses <code>pheromessage</code> to simulate the simple
             gossip networks as seen in this post.</li>
     </ul>
