@@ -12,6 +12,7 @@ function toColor(num) {
 
 function render(canvas, park) {
     let ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     let num_polygons = park.num_polygons();
     for (let polygon = 0; polygon < num_polygons; polygon++) {
         let num_vertices = park.num_vertices(polygon);
@@ -34,7 +35,24 @@ function run(wasm) {
     const canvas = park_table.querySelector('#park-canvas');
     let park = WasmPark.new(canvas.clientWidth, canvas.clientHeight);
     render(canvas, park);
-    // TODO: Start ticking and simulating on Start button click.
+    let start_button = park_table.querySelector('#start-reset');
+    start_button.onclick = () => {
+        // TODO: Change the button to stop/reset and change its onclick
+        let last_tick_time;
+        let animate = (time) => {
+            if (last_tick_time === undefined) {
+                last_tick_time = time;
+                requestAnimationFrame(animate);
+                return;
+            }
+            let millis_elapsed = time - last_tick_time;
+            park.tick(millis_elapsed);
+            render(canvas, park);
+            requestAnimationFrame(animate);
+            last_tick_time = time;
+        };
+        requestAnimationFrame(animate);
+    }
 }
 
 init().then(run)
