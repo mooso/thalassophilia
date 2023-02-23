@@ -22,7 +22,179 @@
     </h2>
 
     <p>
-        (Introduce me and write me)
+        For this post we'll be discussing the paper:
+        "Vapro: Performance Variance Detection and Diagnosis for Production-Run Parallel Applications".
+        This paper was such a delight for me to find, because it discusses a problem that vexed me quite a bit
+        in my career with large scale distributed applications and I for some reason thought it was too niche a
+        problem for anyone else to do deep research on, but I was very happy to find out I was wrong (which honestly
+        is not too surprising in hindsight).
+    </p>
+
+    <h2>
+        The problem
+    </h2>
+
+    <p>
+        Let's say we have a huge data set that we want to search for something in. Easy enough we think, this
+        is classic map reduce problem where we partition the data set into N (say, a thousand) roughly equal sized
+        portions, tell our mighty cluster of a thousand machines to each take a piece and search in there (the map
+        phase), then combine the results (the reduce phase) from all of them. If each piece takes ten seconds to search
+        through, then we should have our results after around ten seconds (assuming our map reduce system is low
+        overhead).
+    </p>
+
+    <p>
+        So we whip that up, launch our jobs, watch in giddiness as the entire cluster is busy for ten seconds
+        then we just wait for our results. And wait. And wait. And almost every machine is idle, but one or two
+        are still busy churning even after a minute! What happened? We double check and our partitioning was fine,
+        the data sizes given to those stragglers was indeed around the same as everyone else. So why did they take
+        that much longer to search through their pieces, and hold us all up?
+    </p>
+
+    <p>
+        It's easy to forget, but modern computers are very complex beasts. And even if we get presumably identical
+        machines, say AWS instances of the same instance type or servers assembled from the same component types,
+        we can still get variations in there intentional or not: maybe the components have different vendors, maybe
+        the SSDs have different firmware versions and one of the versions has a bug, maybe one of the cores of CPU has a
+        subtle bug that causes a slowdown in certain types of workloads. Or maybe it's not a hardware problem at
+        all: maybe when we ran our workload one of the machines' started to run a background OS update job, or the
+        machine had just booted up so its caches were cold, ....
+    </p>
+
+    <p>
+        Any of those causes, or one of many more I have no idea about, could cause performance variation in what
+        should be identical work. This can not only cause problems in batch processing jobs like the example I gave,
+        but also can cause a production service to process some requests much slower than others, which can be a
+        very frustrating experience for some of your customers if you advertise really fast service and everyone raves
+        about how fast it really is, but the unlucky ones are getting a horrible experience.
+    </p>
+
+    <h2>
+        Some classic approaches
+    </h2>
+
+    <p>
+        This is not a new problem, and engineers have been living with this in one way or another for a while now.
+        Some approaches that I'm personally familiar with:
+    </p>
+
+    <ul>
+        <li>Just rerun your job/refresh your web page and hope you get luckier</li>
+        <li>Timeout/retry the slow portion: this is essentially a refinement of the above, but instead of waiting for a
+            human to get frustrated and retry the whole thing, you can have machines give up after a reasonable time
+            and retry just the parts that were slow. This can get much trickier than you'd think to get right, you can
+            see <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/">this
+                article</a>
+            by Marc Brooker for example about all the considerations there.
+        </li>
+        <li>Speculative execution: run your processing on two machines instead of one, and just take the results from
+            the faster one. This can be done for every request in a service if it's lightweight enough, or an
+            orchestrator/frontend machine can monitor each job/request and launch speculative backup executions if one
+            is taking too long. I personally love that approach, and Hadoop and other big frameworks support it, but
+            it's complex to get working correctly and efficiently and of course can be impossible/much more complex for
+            anything that has side effects.
+        </li>
+        <li>Monitoring: Hook all your processing on all machines to a monitoring system, and alarm (or even better,
+            automatically remediate/replace) when any machine is consistently slower than the rest.
+        </li>
+    </ul>
+
+    <p>
+        Typically large complex systems need multiple approaches. The paper we're discussing is in the Monitoring
+        genere of solutions, but with some new ideas and innovations that were very interesting to me.
+    </p>
+
+    <h2>
+        General approach
+    </h2>
+
+    <p>
+        The way the Vapro system/paper tackles this problem is as follows:
+    </p>
+
+    <ol>
+        <li>Hook into the code to detect snippets of execution and how long each execution took</li>
+        <li>Aggregate this information into average times taken for similar amounts of work</li>
+        <li>Ship these aggregates to a central monitoring system that can detect when any one machine is
+            taking longer to do the same amount of work.
+        </li>
+    </ol>
+
+    <p>
+        For hooking into code, they used a very clever technique of intercepting calls to dynamic libraries.
+        This is not a super new technique but it fits well here. If you're not familiar: typically large systems
+        use libraries to do standard things, and if you don't want to change the system but do want to monitor
+        it (like we do here), you can intercept calls to the library and insert your monitoring code in there.
+        So e.g. in the High Performance Computing (HPC) world the authors clearly hail from, the programs
+        typically use a Message Passing Interface (<a
+            href="https://en.wikipedia.org/wiki/Message_Passing_Interface">MPI</a>) library to pass messages
+        between computers, and one can insert the monitoring code every time a call is made there to send or
+        receive a message.
+    </p>
+
+    <p>
+        It's a great approach, but personally I tend to like more explicit approaches when possible. When playing
+        with the techniques of this paper for the code here, I ended up instead hooking into code using the
+        Rust <a href="https://docs.rs/tracing/latest/tracing/">tracing</a> library which defines standard ways
+        to insert monitoring hooks into the code (to the authors' credit - their system also supports explicit hooks).
+    </p>
+
+    <p>
+        Where I got really excited personally though is in the next part: aggregating timing for similar
+        amounts of work. This is trickier than it sounds. Say you're monitoring queries on a database. One
+        query takes 10 milliseconds to run on machine A, and another on B takes 100 milliseconds. Does that mean
+        that A is ten times faster than B? Not necessarily. The first query could be on a much smaller subset
+        of data, or it could be on data already cached in memory, or it could have better suited indexes
+        supporting it, or any of a myriad of ways the queries are different. In general it's very hard to
+        say that any two executions are "similar amounts of work", except in very specific/lucky cases.
+    </p>
+
+    <p>
+        Before this paper, there were two main approaches I'd used/seen used for this (typically combined):
+    </p>
+
+    <ol>
+        <li>Define at the application layer some class of work that's similar enough: say any text search on texts less
+            than 1 MB will count as the same</li>
+        <li>Aggregate lots of executions together and hope the differences wash out</li>
+    </ol>
+
+    <p>
+        This kind of works. But defining the limits in the application is arbitrary and depends on humans with all
+        their follies, and aggregating lots of executions ignores systemic biases (e.g. maybe one machine gets
+        unlucky with a particularly gnarly workload).
+    </p>
+
+    <p>
+        The paper suggests a completely new (to me) approach: whenever any piece of code runs, it uses hardware
+        performance counters to see the amount of computing work that was done. So e.g. the performance counter
+        <code>TOT_INS</code> tracks the number of CPU instructions actually executed while the code ran. It collects
+        a few of these counters into a workload vector, then uses a simple clustering algorithm to group similar
+        executions together and aggregate the timings for each cluster. So this way we automatically get that e.g.
+        finding the best route in Manhattan takes 10 milliseconds on average, while finding a route in Cairo takes
+        500 milliseconds without explicitly specifying that those two tasks should be grouped separately.
+    </p>
+
+    <p>
+        This auto-clustering technique was eye-opening to me. I love that they use performance counters for this,
+        especially that this also helped them diagnose actual causes for slowdowns instead of just blaming supernatural
+        computing forces like I would've done (they include a great anecdote in the paper about finding a CPU with a
+        specific bug that was causing a performance problem this way). But when I started playing with it I decided
+        that I don't have to limit myself to that, and as long as I can construct a vector of quantities that are
+        roughly correlated to the amount of work being done I should be able to get the same benefit.
+    </p>
+
+    <p>
+        Ultimately I went with a slightly different approach: for every code execution, I count how many times
+        each instrumented function/event is called, and use that as the "workload vector". So here is an example:
+        I have a simulation of many polygons in a square (a "polygon park") and for every frame (tick) I run collision
+        detection to figure out if the polygons are colliding and need to bounce off each other. The algorithm for
+        this (<a href="https://dyn4j.org/2010/01/sat/">SAT</a>) involves projections on different axes, so on each
+        frame we'll end up calling the <code>project()</code> function a different amount of times depending on
+        how close the polygons are to each other. So the monitoring code just clusters the executions of the
+        <code>tick</code> invocations together based on how many projections were done, and outputs the averages
+        of timings per cliuster. A simple example is below - trying starting the simulation and seeing the timings
+        on your device.
     </p>
 
     <table id="polygon-park">
@@ -35,8 +207,28 @@
         </tr>
     </table>
 
+    <p>
+        Finally the last part is getting all this data into a central system to spot anomalies. The paper/system
+        in there produces really nice heat maps that can help spot if any machine/CPU is much slower than the others
+        at a glance. That part was relatively straightforward so I'm not going to expand further on it.
+    </p>
+
     <h2>
-        Paper citation (<a href="https://dl.acm.org/doi/10.1145/3503221.3508411">link</a>):
+        Closing thoughts
+    </h2>
+
+    <p>
+        I really enjoyed the insight in this paper about treating a production system as a blackbox without explicit
+        hooks, and still being able to extract and cluster similar amounts of work and detecting anomalies around
+        different execution time for the same/similar amounts of work. It's a very important concept, and I'm glad
+        to see innovations on that front. The evaluation of the system in the paper proved that even with this
+        auto-clustering, monitoring of performance-sensitive systems can be done with a very small overhead. It struck
+        me as a very practical approach that I'm hoping will help us all catch those slow machines in the wild and
+        deal with them before they cause too much havoc.
+    </p>
+
+    <h2>
+        Paper citation (<a href="https://dl.acm.org/doi/10.1145/3503221.3508411">link</a>)
     </h2>
     <p>
         <code>
@@ -49,7 +241,9 @@
     </h2>
     <p>
         The bulk of the code written for this post is in the <a
-            href="https://github.com/mooso/slow-sleuth">slow-sleuth</a> repository.
+            href="https://github.com/mooso/slow-sleuth">slow-sleuth</a> repository. Huge thanks and credit to my friend
+        <a href="https://github.com/Daniel-JSmith">Daniel Smith</a> for implementing the bulk of the polygon park
+        simulation.
     </p>
 
     <p>
