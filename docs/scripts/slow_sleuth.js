@@ -12,7 +12,9 @@ function toColor(num) {
 
 function render(canvas, park) {
     let ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    //ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "blue";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     let num_polygons = park.num_polygons();
     for (let polygon = 0; polygon < num_polygons; polygon++) {
         let num_vertices = park.num_vertices(polygon);
